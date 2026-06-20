@@ -79,6 +79,7 @@ const player = {
   shootCooldown: 0,
   big: false,
   fire: false,
+  crouching: false,
   dead: false,
   winWalk: false,
   hiddenBehindCastle: false
@@ -155,6 +156,23 @@ function getTile(c, r) {
 
 function isSolid(c, r) {
   return solidTiles.has(getTile(c, r));
+}
+
+function setPlayerHeight(height) {
+  const foot = player.y + player.h;
+  player.h = height;
+  player.y = foot - player.h;
+}
+
+function hasStandingHeadroom() {
+  if (!player.big) return true;
+  const standingTop = Math.floor(((player.y + player.h) - 48) / TILE);
+  const left = Math.floor(player.x / TILE);
+  const right = Math.floor((player.x + player.w - 1) / TILE);
+  for (let c = left; c <= right; c++) {
+    if (isSolid(c, standingTop)) return false;
+  }
+  return true;
 }
 
 function addCoin(c, r) {
@@ -570,8 +588,8 @@ function hurtPlayer() {
   }
   if (player.big) {
     player.big = false;
-    player.h = 32;
-    player.y += 16;
+    player.crouching = false;
+    setPlayerHeight(32);
     player.invincible = 2;
     return;
   }
@@ -591,7 +609,8 @@ function resetPlayer() {
   player.dead = false;
   player.big = false;
   player.fire = false;
-  player.h = 32;
+  player.crouching = false;
+  setPlayerHeight(32);
   player.winWalk = false;
   player.hiddenBehindCastle = false;
   player.invincible = 1.5;
@@ -632,11 +651,19 @@ function updatePlayer(dt) {
     beginPipeTravel("main");
     return;
   }
+  const shouldCrouch = keys.down && player.big && player.onGround;
+  if (shouldCrouch && !player.crouching) {
+    player.crouching = true;
+    setPlayerHeight(32);
+  } else if (!shouldCrouch && player.crouching && hasStandingHeadroom()) {
+    player.crouching = false;
+    setPlayerHeight(48);
+  }
   if (keys.runPressed) shootFireball();
   if (player.shootCooldown > 0) player.shootCooldown -= dt / 60;
 
   const accel = player.onGround ? 0.54 : 0.28;
-  const maxSpeed = keys.run ? 5.1 : 3.2;
+  const maxSpeed = player.crouching ? 1.1 : keys.run ? 5.1 : 3.2;
   if (keys.left) {
     player.vx -= accel;
     player.facing = -1;
@@ -813,8 +840,8 @@ function updatePowerups(dt) {
       } else {
         player.big = true;
         player.fire = p.kind === "flower";
-        player.h = 48;
-        player.y -= 16;
+        player.crouching = false;
+        setPlayerHeight(48);
         state.score += 1000;
         addFloatingText("1000", player.x, player.y);
       }
@@ -970,6 +997,16 @@ function drawPlayer() {
   const overalls = player.fire ? "#d82800" : "#0060b8";
   const skin = "#f8c080";
   const shoe = "#5c2c00";
+  if (player.crouching) {
+    drawRect(x + 6, y + 0, 16, 8, cap);
+    drawRect(x + 4, y + 8, 20, 12, skin);
+    drawRect(x + (player.facing > 0 ? 18 : 2), y + 13, 5, 4, "#3c1c00");
+    drawRect(x + 3, y + 20, 22, 8, shirt);
+    drawRect(x + 6, y + 25, 17, 7, overalls);
+    drawRect(x + 2, y + 29, 9, 3, shoe);
+    drawRect(x + 17, y + 29, 9, 3, shoe);
+    return;
+  }
   drawRect(x + 6, y + (player.big ? 0 : 2), 16, 8, cap);
   drawRect(x + 4, y + (player.big ? 8 : 10), 20, 12, skin);
   drawRect(x + (player.facing > 0 ? 18 : 2), y + (player.big ? 13 : 15), 5, 4, "#3c1c00");
@@ -1191,6 +1228,7 @@ function restartGame() {
   state.messageTimer = 2.4;
   player.hiddenBehindCastle = false;
   player.winWalk = false;
+  player.crouching = false;
   enemies.length = 0;
   powerups.length = 0;
   fireballs.length = 0;
@@ -1265,6 +1303,7 @@ window.__plumberDebug = {
     state.countdownAccumulator = 0;
     player.hiddenBehindCastle = false;
     player.fire = false;
+    player.crouching = false;
     player.shootCooldown = 0;
     player.x = c * TILE;
     player.y = row * TILE - player.h;
@@ -1277,11 +1316,10 @@ window.__plumberDebug = {
     state.introTimer = 0;
   },
   setPower({ big = player.big, fire = player.fire } = {}) {
-    const foot = player.y + player.h;
     player.big = big;
     player.fire = fire;
-    player.h = big ? 48 : 32;
-    player.y = foot - player.h;
+    player.crouching = false;
+    setPlayerHeight(big ? 48 : 32);
   },
   bump(c, r) {
     bumpTile(c, r);
@@ -1309,6 +1347,8 @@ window.__plumberDebug = {
         vy: player.vy,
         big: player.big,
         fire: player.fire,
+        crouching: player.crouching,
+        h: player.h,
         dead: player.dead
       },
       state: {
