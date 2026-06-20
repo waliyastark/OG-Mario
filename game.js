@@ -443,6 +443,19 @@ function addFloatingText(text, x, y) {
   floatingText.push({ text, x, y, vy: -0.55, ttl: 1.0 });
 }
 
+function awardCoin(x = player.x, y = player.y) {
+  state.coins += 1;
+  state.score += 200;
+  if (state.coins >= 100) {
+    state.coins -= 100;
+    state.lives += 1;
+    addFloatingText("1UP", x, y - 16);
+    sound("powerup");
+  } else {
+    sound("coin");
+  }
+}
+
 function shootFireball() {
   if (!player.fire || player.shootCooldown > 0 || fireballs.length >= 2 || state.won || player.dead) return;
   fireballs.push({
@@ -460,9 +473,7 @@ function shootFireball() {
 
 function spawnCoin(c, r) {
   particles.push({ type: "coin", x: c * TILE + 10, y: r * TILE - 8, vy: -7, ttl: 0.75 });
-  state.coins += 1;
-  state.score += 200;
-  sound("coin");
+  awardCoin(c * TILE + 10, r * TILE - 8);
 }
 
 function spawnBrickBits(c, r) {
@@ -886,9 +897,7 @@ function updateParticles(dt) {
   for (const coin of collectableCoins) {
     if (!coin.collected && rects(player, coin)) {
       coin.collected = true;
-      state.coins += 1;
-      state.score += 200;
-      sound("coin");
+      awardCoin(coin.x, coin.y);
       addFloatingText("200", coin.x, coin.y);
     }
   }
@@ -1373,6 +1382,11 @@ window.__plumberDebug = {
   },
   setEnemy(index, patch) {
     Object.assign(enemies[index], patch);
+  },
+  setCounters({ coins = state.coins, lives = state.lives, score = state.score } = {}) {
+    state.coins = coins;
+    state.lives = lives;
+    state.score = score;
   },
   snapshot() {
     const tiles = {};
