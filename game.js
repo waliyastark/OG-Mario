@@ -21,6 +21,7 @@ const keys = {
   right: false,
   down: false,
   run: false,
+  runPressed: false,
   jump: false,
   jumpPressed: false
 };
@@ -58,6 +59,7 @@ const collectableCoins = [];
 const particles = [];
 const enemies = [];
 const powerups = [];
+const fireballs = [];
 const floatingText = [];
 
 const player = {
@@ -71,7 +73,9 @@ const player = {
   onGround: false,
   jumpHold: 0,
   invincible: 0,
+  shootCooldown: 0,
   big: false,
+  fire: false,
   dead: false,
   winWalk: false,
   hiddenBehindCastle: false
@@ -353,6 +357,20 @@ function addFloatingText(text, x, y) {
   floatingText.push({ text, x, y, vy: -0.55, ttl: 1.0 });
 }
 
+function shootFireball() {
+  if (!player.fire || player.shootCooldown > 0 || fireballs.length >= 2 || state.won || player.dead) return;
+  fireballs.push({
+    x: player.x + (player.facing > 0 ? player.w : -10),
+    y: player.y + player.h - 16,
+    w: 10,
+    h: 10,
+    vx: player.facing * 7.5,
+    vy: 2.2,
+    ttl: 3
+  });
+  player.shootCooldown = 0.32;
+}
+
 function spawnCoin(c, r) {
   particles.push({ type: "coin", x: c * TILE + 10, y: r * TILE - 8, vy: -7, ttl: 0.75 });
   state.coins += 1;
@@ -377,16 +395,19 @@ function spawnPowerup(c, r, kind) {
     spawnCoin(c, r);
     return;
   }
+  if (kind === "mushroom" && player.big) kind = "flower";
   const isOneUp = kind === "oneup";
+  const isFlower = kind === "flower";
   powerups.push({
     kind,
     x: c * TILE + 2,
     y: r * TILE - 2,
     w: 28,
     h: 28,
-    vx: isOneUp ? 1.6 : 1.1,
+    vx: isFlower ? 0 : isOneUp ? 1.6 : 1.1,
     vy: -1,
-    reveal: 0.7
+    reveal: 0.7,
+    stationary: isFlower
   });
 }
 
@@ -460,6 +481,11 @@ function collideY(entity) {
 
 function hurtPlayer() {
   if (player.invincible > 0 || player.dead || state.won) return;
+  if (player.fire) {
+    player.fire = false;
+    player.invincible = 2;
+    return;
+  }
   if (player.big) {
     player.big = false;
     player.h = 32;
@@ -482,6 +508,7 @@ function resetPlayer() {
   player.vy = 0;
   player.dead = false;
   player.big = false;
+  player.fire = false;
   player.h = 32;
   player.winWalk = false;
   player.hiddenBehindCastle = false;
@@ -523,6 +550,8 @@ function updatePlayer(dt) {
     beginPipeTravel("main");
     return;
   }
+  if (keys.runPressed) shootFireball();
+  if (player.shootCooldown > 0) player.shootCooldown -= dt / 60;
 
   const accel = player.onGround ? 0.54 : 0.28;
   const maxSpeed = keys.run ? 5.1 : 3.2;
@@ -604,12 +633,62 @@ function updateEnemies(dt) {
   }
 }
 
+function updateFireballs(dt) {
+  for (const f of fireballs) {
+    f.ttl -= dt / 60;
+    f.vy = Math.min(10, f.vy + GRAVITY * 0.65);
+
+    f.x += f.vx * dt;
+    const xLeft = Math.floor(f.x / TILE);
+    const xRight = Math.floor((f.x + f.w - 1) / TILE);
+    const xTop = Math.floor(f.y / TILE);
+    const xBottom = Math.floor((f.y + f.h - 1) / TILE);
+    for (let r = xTop; r <= xBottom; r++) {
+      for (let c = xLeft; c <= xRight; c++) {
+        if (isSolid(c, r)) f.ttl = 0;
+      }
+    }
+
+    f.y += f.vy * dt;
+    const left = Math.floor(f.x / TILE);
+    const right = Math.floor((f.x + f.w - 1) / TILE);
+    const top = Math.floor(f.y / TILE);
+    const bottom = Math.floor((f.y + f.h - 1) / TILE);
+    for (let r = top; r <= bottom; r++) {
+      for (let c = left; c <= right; c++) {
+        if (!isSolid(c, r)) continue;
+        if (f.vy > 0) {
+          f.y = r * TILE - f.h;
+          f.vy = -6.2;
+        } else {
+          f.ttl = 0;
+        }
+      }
+    }
+
+    for (const e of enemies) {
+      if (!e.alive || e.squashed > 0) continue;
+      if (rects(f, e)) {
+        e.alive = false;
+        f.ttl = 0;
+        state.score += 200;
+        addFloatingText("200", e.x, e.y);
+      }
+    }
+  }
+  for (let i = fireballs.length - 1; i >= 0; i--) {
+    if (fireballs[i].ttl <= 0 || fireballs[i].x < state.cameraX - 80 || fireballs[i].x > state.cameraX + VIEW_W + 160) {
+      fireballs.splice(i, 1);
+    }
+  }
+}
+
 function updatePowerups(dt) {
   for (const p of powerups) {
     if (p.reveal > 0) {
       p.reveal -= dt / 60;
       p.y -= 0.5 * dt;
-    } else {
+    } else if (!p.stationary) {
       moveEntity(p, dt);
     }
     if (rects(player, p)) {
@@ -620,6 +699,7 @@ function updatePowerups(dt) {
         addFloatingText("1UP", player.x, player.y);
       } else {
         player.big = true;
+        player.fire = p.kind === "flower";
         player.h = 48;
         player.y -= 16;
         state.score += 1000;
@@ -700,9 +780,11 @@ function update(dt) {
   updatePlayer(dt);
   updateEnemies(dt);
   updatePowerups(dt);
+  updateFireballs(dt);
   updateParticles(dt);
   updateCamera();
   keys.jumpPressed = false;
+  keys.runPressed = false;
 }
 
 function drawRect(x, y, w, h, color) {
@@ -760,9 +842,9 @@ function drawPlayer() {
   const x = player.x - state.cameraX;
   const y = player.y;
   if (player.invincible > 0 && Math.floor(performance.now() / 80) % 2 === 0) return;
-  const cap = "#d82800";
-  const shirt = player.big ? "#d82800" : "#b81800";
-  const overalls = "#0060b8";
+  const cap = player.fire ? "#f8f8f8" : "#d82800";
+  const shirt = player.fire ? "#f8f8f8" : player.big ? "#d82800" : "#b81800";
+  const overalls = player.fire ? "#d82800" : "#0060b8";
   const skin = "#f8c080";
   const shoe = "#5c2c00";
   drawRect(x + 6, y + (player.big ? 0 : 2), 16, 8, cap);
@@ -805,6 +887,13 @@ function drawEnemy(e) {
 function drawPowerup(p) {
   const x = p.x - state.cameraX;
   const y = p.y;
+  if (p.kind === "flower") {
+    drawRect(x + 11, y + 16, 6, 12, "#20a038");
+    drawRect(x + 4, y + 5, 20, 16, "#f8f8f8");
+    drawRect(x + 7, y + 8, 14, 10, "#f04030");
+    drawRect(x + 10, y + 10, 8, 6, "#ffd840");
+    return;
+  }
   const cap = p.kind === "oneup" ? "#28b840" : "#f04030";
   drawRect(x + 2, y + 6, 24, 14, cap);
   drawRect(x + 7, y + 2, 14, 22, "#f8f8f8");
@@ -909,6 +998,11 @@ function draw() {
     }
   }
   for (const p of powerups) drawPowerup(p);
+  for (const f of fireballs) {
+    const pulse = Math.floor(performance.now() / 90) % 2;
+    drawRect(f.x - state.cameraX, f.y, f.w, f.h, pulse ? "#ffb000" : "#f84020");
+    drawRect(f.x + 3 - state.cameraX, f.y + 3, 4, 4, "#fff070");
+  }
   for (const e of enemies) if (e.alive && e.x > state.cameraX - 80 && e.x < state.cameraX + VIEW_W + 80) drawEnemy(e);
   if (!player.hiddenBehindCastle) drawPlayer();
   ctx.fillStyle = "#fff";
@@ -947,6 +1041,7 @@ function restartGame() {
   player.winWalk = false;
   enemies.length = 0;
   powerups.length = 0;
+  fireballs.length = 0;
   particles.length = 0;
   floatingText.length = 0;
   collectableCoins.length = 0;
@@ -961,7 +1056,10 @@ window.addEventListener("keydown", event => {
   if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = true;
   if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = true;
   if (event.code === "ArrowDown" || event.code === "KeyS") keys.down = true;
-  if (event.code === "ShiftLeft" || event.code === "ShiftRight" || event.code === "KeyX") keys.run = true;
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight" || event.code === "KeyX") {
+    if (!keys.run) keys.runPressed = true;
+    keys.run = true;
+  }
   if (event.code === "Space" || event.code === "KeyZ" || event.code === "ArrowUp") {
     if (!keys.jump) keys.jumpPressed = true;
     keys.jump = true;
@@ -1011,6 +1109,8 @@ window.__plumberDebug = {
     state.flagScore = 0;
     state.countdownAccumulator = 0;
     player.hiddenBehindCastle = false;
+    player.fire = false;
+    player.shootCooldown = 0;
     player.x = c * TILE;
     player.y = row * TILE - player.h;
     player.vx = 0;
@@ -1020,6 +1120,19 @@ window.__plumberDebug = {
   },
   skipIntro() {
     state.introTimer = 0;
+  },
+  setPower({ big = player.big, fire = player.fire } = {}) {
+    const foot = player.y + player.h;
+    player.big = big;
+    player.fire = fire;
+    player.h = big ? 48 : 32;
+    player.y = foot - player.h;
+  },
+  bump(c, r) {
+    bumpTile(c, r);
+  },
+  tapRun() {
+    keys.runPressed = true;
   },
   snapshot() {
     const tiles = {};
@@ -1037,6 +1150,7 @@ window.__plumberDebug = {
         vx: player.vx,
         vy: player.vy,
         big: player.big,
+        fire: player.fire,
         dead: player.dead
       },
       state: {
@@ -1054,9 +1168,18 @@ window.__plumberDebug = {
       },
       tiles,
       enemies: enemies.filter(enemy => enemy.alive).length,
+      enemySamples: enemies.filter(enemy => enemy.alive).slice(0, 5).map(enemy => ({
+        type: enemy.type,
+        x: enemy.x,
+        y: enemy.y,
+        w: enemy.w,
+        h: enemy.h
+      })),
       collectableCoins: collectableCoins.filter(coin => !coin.collected).length,
       questionBlocks: questionBlocks.size,
-      powerups: powerups.length
+      powerups: powerups.map(powerup => ({ kind: powerup.kind, x: powerup.x, y: powerup.y })),
+      fireballs: fireballs.length,
+      fireballSamples: fireballs.map(fireball => ({ x: fireball.x, y: fireball.y, vx: fireball.vx, vy: fireball.vy }))
     };
   }
 };

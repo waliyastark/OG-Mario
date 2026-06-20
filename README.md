@@ -13,7 +13,7 @@ No build step, install step, server, or internet connection is required. The who
 | Action | Keyboard |
 | --- | --- |
 | Move left/right | Arrow keys or A/D |
-| Run | Shift or X |
+| Run / throw fireballs after flower | Shift or X |
 | Jump | Space, Z, or Up |
 | Enter usable pipes | Down or S |
 | Restart after game over | Enter |
@@ -22,7 +22,7 @@ Touch controls appear automatically on mobile devices.
 
 ## Goal
 
-Reach the flagpole at the far right of the level. Collect coins, stomp enemies, hit blocks from below, find the hidden 1-up, and enter the correct pipe to visit the underground bonus room before returning to the main course.
+Reach the flagpole at the far right of the level. Collect coins, stomp enemies, hit blocks from below, find the hidden 1-up, power up from mushroom to flower, and enter the correct pipe to visit the underground bonus room before returning to the main course.
 
 ## Files
 
