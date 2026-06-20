@@ -80,6 +80,7 @@ const player = {
   jumpHold: 0,
   jumpBuffer: 0,
   coyoteTimer: 0,
+  stompChain: 0,
   invincible: 0,
   shootCooldown: 0,
   big: false,
@@ -390,7 +391,8 @@ function addEnemy(c, type = "goomba") {
     vy: 0,
     alive: true,
     squashed: 0,
-    shell: false
+    shell: false,
+    hitChain: 0
   });
 }
 
@@ -496,6 +498,28 @@ function addFloatingText(text, x, y) {
   floatingText.push({ text, x, y, vy: -0.55, ttl: 1.0 });
 }
 
+function scoreForChain(chain) {
+  const scores = [100, 200, 400, 500, 800, 1000, 2000, 4000, 5000];
+  return scores[Math.min(chain, scores.length - 1)];
+}
+
+function awardEnemyScore(points, x, y) {
+  state.score += points;
+  addFloatingText(String(points), x, y);
+}
+
+function awardStompScore(enemy) {
+  const points = scoreForChain(player.stompChain);
+  player.stompChain += 1;
+  awardEnemyScore(points, enemy.x, enemy.y);
+}
+
+function awardShellHitScore(shell, enemy) {
+  const points = scoreForChain(shell.hitChain + 1);
+  shell.hitChain += 1;
+  awardEnemyScore(points, enemy.x, enemy.y);
+}
+
 function awardCoin(x = player.x, y = player.y) {
   state.coins += 1;
   state.score += 200;
@@ -555,8 +579,7 @@ function hitEnemiesAboveBlock(c, r) {
     enemy.alive = false;
     enemy.vx = 0;
     enemy.vy = -6;
-    state.score += 100;
-    addFloatingText("100", enemy.x, enemy.y);
+    awardEnemyScore(100, enemy.x, enemy.y);
     sound("stomp");
   }
 }
@@ -700,6 +723,7 @@ function resetPlayer() {
   player.jumpBuffer = 0;
   player.coyoteTimer = 0;
   player.jumpHold = 0;
+  player.stompChain = 0;
   player.winWalk = false;
   player.hiddenBehindCastle = false;
   player.invincible = 1.5;
@@ -815,6 +839,7 @@ function updatePlayer(dt) {
   }
 
   moveEntity(player, dt);
+  if (player.onGround) player.stompChain = 0;
   if (player.x < state.cameraX + 8) {
     player.x = state.cameraX + 8;
     player.vx = 0;
@@ -849,8 +874,7 @@ function updateEnemies(dt) {
         if (target === e || !target.alive || target.squashed > 0) continue;
         if (rects(e, target)) {
           target.alive = false;
-          state.score += 200;
-          addFloatingText("200", target.x, target.y);
+          awardShellHitScore(e, target);
         }
       }
     }
@@ -859,18 +883,18 @@ function updateEnemies(dt) {
       if (player.vy > 0 && player.y + player.h - e.y < 22) {
         if (e.shell) {
           e.vx = 0;
+          e.hitChain = 0;
           player.vy = -8;
-          state.score += 100;
-          addFloatingText("100", e.x, e.y);
+          awardStompScore(e);
           sound("stomp");
         } else if (e.type === "koopa") {
           e.shell = true;
           e.h = 24;
           e.y += 18;
           e.vx = 0;
+          e.hitChain = 0;
           player.vy = -8;
-          state.score += 100;
-          addFloatingText("100", e.x, e.y);
+          awardStompScore(e);
           sound("stomp");
         } else {
           e.squashed = 0.25;
@@ -878,16 +902,15 @@ function updateEnemies(dt) {
           e.h = 12;
           e.y += 16;
           player.vy = -8;
-          state.score += 100;
-          addFloatingText("100", e.x, e.y);
+          awardStompScore(e);
           sound("stomp");
         }
       } else if (e.shell && Math.abs(e.vx) < 0.2) {
         e.vx = player.x + player.w / 2 < e.x + e.w / 2 ? 7.2 : -7.2;
         e.facing = Math.sign(e.vx);
+        e.hitChain = 0;
         player.vx = -Math.sign(e.vx) * 2.2;
-        state.score += 100;
-        addFloatingText("100", e.x, e.y);
+        awardEnemyScore(100, e.x, e.y);
         sound("stomp");
       } else {
         hurtPlayer();
@@ -1453,6 +1476,7 @@ window.__plumberDebug = {
     player.jumpBuffer = 0;
     player.coyoteTimer = 0;
     player.jumpHold = 0;
+    player.stompChain = 0;
     player.x = c * TILE;
     player.y = row * TILE - player.h;
     player.vx = 0;
@@ -1477,6 +1501,9 @@ window.__plumberDebug = {
   },
   setEnemy(index, patch) {
     Object.assign(enemies[index], patch);
+  },
+  setPlayer(patch) {
+    Object.assign(player, patch);
   },
   forceDeath() {
     player.big = false;
@@ -1512,7 +1539,8 @@ window.__plumberDebug = {
         fire: player.fire,
         crouching: player.crouching,
         h: player.h,
-        dead: player.dead
+        dead: player.dead,
+        stompChain: player.stompChain
       },
       state: {
         cameraX: state.cameraX,
@@ -1543,7 +1571,8 @@ window.__plumberDebug = {
           w: enemy.w,
           h: enemy.h,
           shell: enemy.shell,
-          vx: enemy.vx
+          vx: enemy.vx,
+          hitChain: enemy.hitChain
         })),
       collectableCoins: collectableCoins.filter(coin => !coin.collected).length,
       questionBlocks: questionBlocks.size,
