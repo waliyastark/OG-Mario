@@ -1,0 +1,67 @@
+:root {
+  color-scheme: dark;
+  --sky: #5c94fc;
+  --ink: #191919;
+  --panel: #f8f0c8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #111;
+  font-family: "Courier New", monospace;
+}
+
+.game-shell {
+  position: relative;
+  width: min(100vw, 1365px);
+  aspect-ratio: 4 / 3;
+  background: var(--sky);
+  image-rendering: pixelated;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--sky);
+  image-rendering: pixelated;
+}
+
+.mobile-controls {
+  position: absolute;
+  inset: auto 16px 16px 16px;
+  display: none;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.mobile-controls button {
+  width: 58px;
+  height: 58px;
+  border: 3px solid rgba(255, 255, 255, 0.68);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.26);
+  font: 700 20px/1 "Courier New", monospace;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .mobile-controls {
+    display: flex;
+  }
+}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OG Mario</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="game-shell">
+      <canvas id="game" width="1024" height="768" aria-label="Pixel platform game"></canvas>
+      <div class="mobile-controls" aria-hidden="true">
+        <button data-hold="left">◀</button>
+        <button data-hold="down">▼</button>
+        <button data-hold="right">▶</button>
+        <button data-press="jump">A</button>
+        <button data-hold="run">B</button>
+      </div>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
