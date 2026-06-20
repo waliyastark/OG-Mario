@@ -662,6 +662,32 @@ function resetPlayer() {
   if (state.lives <= 0) state.gameOver = true;
 }
 
+function resetLevelState() {
+  enemies.length = 0;
+  powerups.length = 0;
+  fireballs.length = 0;
+  particles.length = 0;
+  floatingText.length = 0;
+  collectableCoins.length = 0;
+  bumpOffsets.clear();
+  for (const row of level) row.fill(null);
+  questionBlocks.clear();
+  brickContents.clear();
+  makeLevel();
+}
+
+function restartLevelAfterDeath() {
+  if (state.lives <= 0) {
+    state.gameOver = true;
+    return;
+  }
+  resetLevelState();
+  resetPlayer();
+  state.introTimer = 1.4;
+  state.message = "WORLD 1-1";
+  state.messageTimer = 2.2;
+}
+
 function updatePlayer(dt) {
   if (state.pipeTimer > 0) {
     player.y += 1.6 * dt;
@@ -671,7 +697,7 @@ function updatePlayer(dt) {
   if (player.dead) {
     player.vy += GRAVITY * 0.8;
     player.y += player.vy * dt;
-    if (player.y > VIEW_H + 100 && !state.gameOver) resetPlayer();
+    if (player.y > VIEW_H + 100 && !state.gameOver) restartLevelAfterDeath();
     return;
   }
 
@@ -1268,17 +1294,7 @@ function restartGame() {
   player.hiddenBehindCastle = false;
   player.winWalk = false;
   player.crouching = false;
-  enemies.length = 0;
-  powerups.length = 0;
-  fireballs.length = 0;
-  particles.length = 0;
-  floatingText.length = 0;
-  collectableCoins.length = 0;
-  bumpOffsets.clear();
-  for (const row of level) row.fill(null);
-  questionBlocks.clear();
-  brickContents.clear();
-  makeLevel();
+  resetLevelState();
   resetPlayer();
 }
 
@@ -1382,6 +1398,12 @@ window.__plumberDebug = {
   },
   setEnemy(index, patch) {
     Object.assign(enemies[index], patch);
+  },
+  forceDeath() {
+    player.big = false;
+    player.fire = false;
+    player.invincible = 0;
+    hurtPlayer();
   },
   setCounters({ coins = state.coins, lives = state.lives, score = state.score } = {}) {
     state.coins = coins;
