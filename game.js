@@ -834,6 +834,12 @@ function drawRect(x, y, w, h, color) {
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
+function drawCircleBlock(x, y, size, color) {
+  drawRect(x + size, y, size, size, color);
+  drawRect(x, y + size, size * 3, size, color);
+  drawRect(x + size, y + size * 2, size, size, color);
+}
+
 function drawTile(type, x, y) {
   if (!type || type === "hidden") return;
   if (type === "ground") {
@@ -846,8 +852,11 @@ function drawTile(type, x, y) {
     drawRect(x + 14, y, 3, 14, "#581808");
     drawRect(x + 4, y + 4, 6, 4, "#f89840");
   } else if (type === "block") {
-    drawRect(x, y, TILE, TILE, "#f8b800");
-    drawRect(x + 3, y + 3, TILE - 6, TILE - 6, "#e07800");
+    const flash = Math.floor(performance.now() / 220) % 4;
+    const outer = ["#f8b800", "#f8d840", "#f8b800", "#e07800"][flash];
+    const inner = ["#e07800", "#f8b800", "#d06000", "#f8d840"][flash];
+    drawRect(x, y, TILE, TILE, outer);
+    drawRect(x + 3, y + 3, TILE - 6, TILE - 6, inner);
     ctx.fillStyle = "#fff0a0";
     ctx.font = "bold 26px Courier New";
     ctx.fillText("?", x + 7, y + 25);
@@ -946,12 +955,31 @@ function drawCloud(x, y) {
   drawRect(x + 18, y + 10, 48, 20, "#fff");
   drawRect(x + 30, y, 20, 20, "#fff");
   drawRect(x + 7, y + 18, 70, 14, "#fff");
+  drawRect(x + 40, y + 23, 48, 10, "#fff");
 }
 
-function drawBush(x, y) {
-  drawRect(x + 8, y + 16, 72, 18, "#00a800");
-  drawRect(x + 20, y + 4, 24, 24, "#00c000");
-  drawRect(x + 46, y + 8, 28, 26, "#00b000");
+function drawBush(x, y, wide = false) {
+  drawRect(x + 8, y + 20, wide ? 110 : 72, 18, "#008800");
+  drawCircleBlock(x + 17, y + 8, 8, "#00c000");
+  drawCircleBlock(x + 45, y + 4, 10, "#00b800");
+  if (wide) drawCircleBlock(x + 75, y + 9, 8, "#00c000");
+}
+
+function drawHill(x, y, scale = 1) {
+  const s = scale;
+  drawRect(x + 20 * s, y + 56 * s, 128 * s, 24 * s, "#00a840");
+  drawRect(x + 36 * s, y + 32 * s, 96 * s, 28 * s, "#00b848");
+  drawRect(x + 58 * s, y + 12 * s, 52 * s, 28 * s, "#00c850");
+  drawRect(x + 70 * s, y + 24 * s, 10 * s, 10 * s, "#78f858");
+  drawRect(x + 100 * s, y + 46 * s, 10 * s, 10 * s, "#78f858");
+}
+
+function drawFence(x, y, posts = 6) {
+  for (let i = 0; i < posts; i++) {
+    drawRect(x + i * 28, y, 8, 34, "#f8d878");
+  }
+  drawRect(x - 4, y + 9, posts * 28, 6, "#d8a038");
+  drawRect(x - 4, y + 24, posts * 28, 6, "#d8a038");
 }
 
 function drawBackground() {
@@ -961,13 +989,23 @@ function drawBackground() {
   }
   drawRect(0, 0, VIEW_W, VIEW_H, "#5c94fc");
   const cam = state.cameraX * 0.45;
-  for (let i = 0; i < 14; i++) {
-    const x = ((i * 380 - cam) % 1600 + 1600) % 1600 - 180;
-    drawCloud(x, 82 + (i % 3) * 58);
+  for (let i = 0; i < 10; i++) {
+    const x = ((i * 520 - cam) % 1700 + 1700) % 1700 - 210;
+    drawCloud(x, 72 + (i % 3) * 64);
+    if (i % 2 === 0) drawCloud(x + 170, 150 + (i % 2) * 40);
+  }
+  const hillCam = state.cameraX * 0.62;
+  for (let i = 0; i < 12; i++) {
+    const x = i * 520 - hillCam;
+    if (x > -220 && x < VIEW_W + 120) drawHill(x, GROUND_ROW * TILE - 104, i % 3 === 0 ? 1.15 : 0.85);
   }
   for (let i = 0; i < 18; i++) {
     const x = i * 330 - state.cameraX * 0.75;
-    if (x > -140 && x < VIEW_W + 80) drawBush(x, GROUND_ROW * TILE - 34);
+    if (x > -140 && x < VIEW_W + 80) drawBush(x, GROUND_ROW * TILE - 42, i % 4 === 1);
+  }
+  for (let i = 0; i < 10; i++) {
+    const x = i * 740 - state.cameraX * 0.82 + 120;
+    if (x > -220 && x < VIEW_W + 80) drawFence(x, GROUND_ROW * TILE - 54, 5 + (i % 3));
   }
 }
 
