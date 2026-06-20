@@ -8,6 +8,8 @@ Open `index.html` in any modern desktop browser.
 
 No build step, install step, server, or internet connection is required. The whole game runs from the local files in this folder.
 
+Sound effects start after your first keyboard or touch input, which matches normal browser audio rules.
+
 ## Controls
 
 | Action | Keyboard |

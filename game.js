@@ -62,6 +62,8 @@ const enemies = [];
 const powerups = [];
 const fireballs = [];
 const floatingText = [];
+let audioCtx = null;
+let audioReady = false;
 
 const player = {
   x: 3 * TILE,
@@ -81,6 +83,62 @@ const player = {
   winWalk: false,
   hiddenBehindCastle: false
 };
+
+function ensureAudio() {
+  if (audioReady) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  audioCtx = audioCtx || new AudioContextClass();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  audioReady = true;
+}
+
+function tone(freq, duration = 0.08, type = "square", volume = 0.08, delay = 0) {
+  if (!audioReady || !audioCtx) return;
+  const start = audioCtx.currentTime + delay;
+  const oscillator = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(freq, start);
+  gain.gain.setValueAtTime(volume, start);
+  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(audioCtx.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration);
+}
+
+function sound(name) {
+  if (!audioReady) return;
+  if (name === "jump") {
+    tone(330, 0.08, "square", 0.07);
+    tone(520, 0.08, "square", 0.05, 0.06);
+  } else if (name === "coin") {
+    tone(988, 0.05, "square", 0.07);
+    tone(1318, 0.08, "square", 0.06, 0.05);
+  } else if (name === "bump") {
+    tone(160, 0.08, "square", 0.08);
+  } else if (name === "break") {
+    tone(140, 0.04, "sawtooth", 0.08);
+    tone(90, 0.08, "sawtooth", 0.06, 0.04);
+  } else if (name === "powerup") {
+    [392, 523, 659, 784].forEach((freq, i) => tone(freq, 0.07, "square", 0.055, i * 0.055));
+  } else if (name === "stomp") {
+    tone(190, 0.05, "square", 0.08);
+    tone(95, 0.08, "square", 0.06, 0.04);
+  } else if (name === "fireball") {
+    tone(600, 0.04, "square", 0.055);
+    tone(300, 0.05, "square", 0.045, 0.035);
+  } else if (name === "pipe") {
+    tone(220, 0.12, "triangle", 0.08);
+    tone(140, 0.16, "triangle", 0.07, 0.08);
+  } else if (name === "hurt") {
+    tone(180, 0.18, "sawtooth", 0.07);
+    tone(120, 0.16, "sawtooth", 0.06, 0.11);
+  } else if (name === "flag") {
+    [523, 659, 784, 1046].forEach((freq, i) => tone(freq, 0.09, "square", 0.055, i * 0.08));
+  }
+}
 
 function tileKey(c, r) {
   return `${c},${r}`;
@@ -156,6 +214,7 @@ function isStandingOnPipe(c) {
 }
 
 function beginPipeTravel(targetArea) {
+  sound("pipe");
   state.pipeTimer = 0.7;
   state.pipeTarget = targetArea;
   player.vx = 0;
@@ -199,6 +258,7 @@ function startFlagSequence() {
   player.onGround = false;
   player.facing = 1;
   addFloatingText(String(state.flagScore), player.x - 14, player.y - 24);
+  sound("flag");
 }
 
 function updateFinishSequence(dt) {
@@ -375,12 +435,14 @@ function shootFireball() {
     ttl: 3
   });
   player.shootCooldown = 0.32;
+  sound("fireball");
 }
 
 function spawnCoin(c, r) {
   particles.push({ type: "coin", x: c * TILE + 10, y: r * TILE - 8, vy: -7, ttl: 0.75 });
   state.coins += 1;
   state.score += 200;
+  sound("coin");
 }
 
 function spawnBrickBits(c, r) {
@@ -446,8 +508,10 @@ function bumpTile(c, r) {
     brickContents.delete(key);
     spawnBrickBits(c, r);
     state.score += 50;
+    sound("break");
   } else {
     particles.push({ type: "bump", x: c * TILE, y: r * TILE, ttl: 0.2 });
+    sound("bump");
   }
 }
 
@@ -498,6 +562,7 @@ function collideY(entity) {
 
 function hurtPlayer() {
   if (player.invincible > 0 || player.dead || state.won) return;
+  sound("hurt");
   if (player.fire) {
     player.fire = false;
     player.invincible = 2;
@@ -589,6 +654,7 @@ function updatePlayer(dt) {
     player.vy = keys.run ? -13.2 : -12;
     player.onGround = false;
     player.jumpHold = 0.24;
+    sound("jump");
   }
   if (keys.jump && player.jumpHold > 0 && player.vy < 0) {
     player.vy -= 0.28;
@@ -645,6 +711,7 @@ function updateEnemies(dt) {
           player.vy = -8;
           state.score += 100;
           addFloatingText("100", e.x, e.y);
+          sound("stomp");
         } else if (e.type === "koopa") {
           e.shell = true;
           e.h = 24;
@@ -653,6 +720,7 @@ function updateEnemies(dt) {
           player.vy = -8;
           state.score += 100;
           addFloatingText("100", e.x, e.y);
+          sound("stomp");
         } else {
           e.squashed = 0.25;
           e.vx = 0;
@@ -661,6 +729,7 @@ function updateEnemies(dt) {
           player.vy = -8;
           state.score += 100;
           addFloatingText("100", e.x, e.y);
+          sound("stomp");
         }
       } else if (e.shell && Math.abs(e.vx) < 0.2) {
         e.vx = player.x + player.w / 2 < e.x + e.w / 2 ? 7.2 : -7.2;
@@ -668,6 +737,7 @@ function updateEnemies(dt) {
         player.vx = -Math.sign(e.vx) * 2.2;
         state.score += 100;
         addFloatingText("100", e.x, e.y);
+        sound("stomp");
       } else {
         hurtPlayer();
       }
@@ -735,6 +805,7 @@ function updatePowerups(dt) {
     }
     if (rects(player, p)) {
       p.collected = true;
+      sound("powerup");
       if (p.kind === "oneup") {
         state.lives += 1;
         state.score += 1000;
@@ -760,6 +831,7 @@ function updateParticles(dt) {
       coin.collected = true;
       state.coins += 1;
       state.score += 200;
+      sound("coin");
       addFloatingText("200", coin.x, coin.y);
     }
   }
@@ -1134,6 +1206,7 @@ function restartGame() {
 }
 
 window.addEventListener("keydown", event => {
+  ensureAudio();
   if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = true;
   if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = true;
   if (event.code === "ArrowDown" || event.code === "KeyS") keys.down = true;
@@ -1162,6 +1235,7 @@ for (const button of document.querySelectorAll(".mobile-controls button")) {
   const press = button.dataset.press;
   button.addEventListener("pointerdown", event => {
     event.preventDefault();
+    ensureAudio();
     button.setPointerCapture(event.pointerId);
     if (hold) keys[hold] = true;
     if (press === "jump") {
