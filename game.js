@@ -610,20 +610,45 @@ function updateEnemies(dt) {
     if (!isSolid(ahead, foot)) e.vx *= -1;
     if (e.y > VIEW_H + 200) e.alive = false;
 
+    if (e.shell && Math.abs(e.vx) > 0.5) {
+      for (const target of enemies) {
+        if (target === e || !target.alive || target.squashed > 0) continue;
+        if (rects(e, target)) {
+          target.alive = false;
+          state.score += 200;
+          addFloatingText("200", target.x, target.y);
+        }
+      }
+    }
+
     if (!player.dead && rects(player, e)) {
       if (player.vy > 0 && player.y + player.h - e.y < 22) {
-        if (e.type === "koopa" && !e.shell) {
+        if (e.shell) {
+          e.vx = 0;
+          player.vy = -8;
+          state.score += 100;
+          addFloatingText("100", e.x, e.y);
+        } else if (e.type === "koopa") {
           e.shell = true;
           e.h = 24;
           e.y += 18;
           e.vx = 0;
+          player.vy = -8;
+          state.score += 100;
+          addFloatingText("100", e.x, e.y);
         } else {
           e.squashed = 0.25;
           e.vx = 0;
           e.h = 12;
           e.y += 16;
+          player.vy = -8;
+          state.score += 100;
+          addFloatingText("100", e.x, e.y);
         }
-        player.vy = -8;
+      } else if (e.shell && Math.abs(e.vx) < 0.2) {
+        e.vx = player.x + player.w / 2 < e.x + e.w / 2 ? 7.2 : -7.2;
+        e.facing = Math.sign(e.vx);
+        player.vx = -Math.sign(e.vx) * 2.2;
         state.score += 100;
         addFloatingText("100", e.x, e.y);
       } else {
@@ -1134,6 +1159,9 @@ window.__plumberDebug = {
   tapRun() {
     keys.runPressed = true;
   },
+  setEnemy(index, patch) {
+    Object.assign(enemies[index], patch);
+  },
   snapshot() {
     const tiles = {};
     for (const row of level) {
@@ -1168,13 +1196,19 @@ window.__plumberDebug = {
       },
       tiles,
       enemies: enemies.filter(enemy => enemy.alive).length,
-      enemySamples: enemies.filter(enemy => enemy.alive).slice(0, 5).map(enemy => ({
-        type: enemy.type,
-        x: enemy.x,
-        y: enemy.y,
-        w: enemy.w,
-        h: enemy.h
-      })),
+      enemySamples: enemies.map((enemy, index) => ({ enemy, index }))
+        .filter(entry => entry.enemy.alive)
+        .slice(0, 8)
+        .map(({ enemy, index }) => ({
+          index,
+          type: enemy.type,
+          x: enemy.x,
+          y: enemy.y,
+          w: enemy.w,
+          h: enemy.h,
+          shell: enemy.shell,
+          vx: enemy.vx
+        })),
       collectableCoins: collectableCoins.filter(coin => !coin.collected).length,
       questionBlocks: questionBlocks.size,
       powerups: powerups.map(powerup => ({ kind: powerup.kind, x: powerup.x, y: powerup.y })),
