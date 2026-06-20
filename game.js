@@ -163,7 +163,8 @@ function setTile(c, r, type) {
 }
 
 function getTile(c, r) {
-  if (c < 0 || c >= LEVEL_COLS || r < 0 || r >= ROWS) return "ground";
+  if (r < 0 || r >= ROWS) return null;
+  if (c < 0 || c >= LEVEL_COLS) return "ground";
   return level[r][c];
 }
 
@@ -716,11 +717,17 @@ function hurtPlayer() {
     player.invincible = 2;
     return;
   }
+  killPlayer();
+}
+
+function killPlayer(message = "TRY AGAIN") {
+  if (player.dead || state.won) return;
+  sound("hurt");
   player.dead = true;
   player.vy = -11;
   player.vx = 0;
   state.lives -= 1;
-  state.message = state.lives > 0 ? "TRY AGAIN" : "GAME OVER";
+  state.message = state.lives > 0 ? message : "GAME OVER";
   state.messageTimer = 3;
 }
 
@@ -860,7 +867,7 @@ function updatePlayer(dt) {
     player.x = state.cameraX + 8;
     player.vx = 0;
   }
-  if (player.y > VIEW_H + 80) hurtPlayer();
+  if (player.y > VIEW_H + 80) killPlayer();
   if (player.invincible > 0) player.invincible -= dt / 60;
   if (player.starTimer > 0) player.starTimer = Math.max(0, player.starTimer - dt / 60);
 
@@ -1094,7 +1101,7 @@ function update(dt) {
     if (state.timeAccumulator >= 1) {
       state.time -= 1;
       state.timeAccumulator = 0;
-      if (state.time <= 0) hurtPlayer();
+      if (state.time <= 0) killPlayer("TIME UP");
     }
   }
   updatePlayer(dt);
@@ -1587,6 +1594,9 @@ window.__plumberDebug = {
     player.fire = false;
     player.invincible = 0;
     hurtPlayer();
+  },
+  forceLifeLoss(message) {
+    killPlayer(message);
   },
   setCounters({ coins = state.coins, lives = state.lives, score = state.score } = {}) {
     state.coins = coins;
