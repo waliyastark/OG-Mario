@@ -53,6 +53,7 @@ const bumpableTiles = new Set(["brick", "block", "hidden"]);
 
 const level = Array.from({ length: ROWS }, () => Array(LEVEL_COLS).fill(null));
 const questionBlocks = new Map();
+const brickContents = new Map();
 const hiddenCoins = new Map();
 const bumpOffsets = new Map();
 const collectableCoins = [];
@@ -130,6 +131,11 @@ function addQuestion(c, r, kind = "coin") {
 function addHidden(c, r, kind = "coin") {
   setTile(c, r, "hidden");
   questionBlocks.set(tileKey(c, r), { kind, used: false, hidden: true });
+}
+
+function addBrick(c, r, content = null, count = 1) {
+  setTile(c, r, "brick");
+  if (content) brickContents.set(tileKey(c, r), { kind: content, count, used: false });
 }
 
 function addPipe(c, h) {
@@ -262,11 +268,11 @@ function makeLevel() {
   addGround(156, 225);
 
   addQuestion(16, 16, "coin");
-  setTile(20, 16, "brick");
+  addBrick(20, 16, "multiCoin", 8);
   addQuestion(21, 16, "mushroom");
-  setTile(22, 16, "brick");
+  addBrick(22, 16);
   addQuestion(23, 16, "coin");
-  setTile(24, 16, "brick");
+  addBrick(24, 16);
   addQuestion(22, 12, "coin");
   [9, 10, 11, 12, 13].forEach(c => addCoin(c, 17));
 
@@ -276,28 +282,28 @@ function makeLevel() {
   addPipe(57, 4);
   addHidden(64, 13, "oneup");
 
-  setTile(77, 16, "brick");
+  addBrick(77, 16, "coin");
   addQuestion(78, 16, "mushroom");
-  setTile(79, 16, "brick");
-  setTile(80, 12, "brick");
-  setTile(81, 12, "brick");
+  addBrick(79, 16);
+  addBrick(80, 12);
+  addBrick(81, 12, "multiCoin", 8);
   addQuestion(82, 12, "coin");
   addQuestion(83, 12, "coin");
-  setTile(84, 12, "brick");
-  setTile(85, 12, "brick");
+  addBrick(84, 12);
+  addBrick(85, 12);
   [73, 74, 75, 76, 77].forEach(c => addCoin(c, 13));
 
-  for (let c = 91; c <= 94; c++) setTile(c, 16, "brick");
+  for (let c = 91; c <= 94; c++) addBrick(c, 16, c === 92 ? "coin" : null);
   addQuestion(94, 12, "coin");
-  setTile(100, 16, "brick");
-  setTile(101, 16, "brick");
+  addBrick(100, 16);
+  addBrick(101, 16, "coin");
   addQuestion(106, 16, "coin");
   addQuestion(109, 16, "coin");
   addQuestion(112, 16, "coin");
-  setTile(109, 12, "brick");
+  addBrick(109, 12, "multiCoin", 8);
   [103, 104, 105, 106, 107, 108].forEach(c => addCoin(c, 13));
   addQuestion(126, 16, "coin");
-  setTile(127, 16, "brick");
+  addBrick(127, 16);
   addQuestion(128, 16, "coin");
 
   addStairs(134, 4);
@@ -306,12 +312,12 @@ function makeLevel() {
   addStairs(155, 4, true);
   addPipe(163, 2);
 
-  for (let c = 168; c <= 174; c++) setTile(c, 16, "brick");
+  for (let c = 168; c <= 174; c++) addBrick(c, 16, c === 169 ? "coin" : null);
   addQuestion(170, 12, "coin");
-  setTile(174, 12, "brick");
-  setTile(177, 16, "brick");
+  addBrick(174, 12);
+  addBrick(177, 16);
   addQuestion(178, 16, "coin");
-  setTile(179, 16, "brick");
+  addBrick(179, 16);
   [170, 171, 172, 173, 174].forEach(c => addCoin(c, 9));
 
   addStairs(181, 8);
@@ -339,13 +345,13 @@ function makeBonusRoom() {
     setTile(c, 2, "stone");
     setTile(c, 3, "stone");
   }
-  for (let c = BONUS_START_COL + 4; c <= BONUS_START_COL + 18; c++) setTile(c, 15, "brick");
+  for (let c = BONUS_START_COL + 4; c <= BONUS_START_COL + 18; c++) addBrick(c, 15, c === BONUS_START_COL + 10 ? "multiCoin" : null, 8);
   for (let c = BONUS_START_COL + 5; c <= BONUS_START_COL + 17; c++) addCoin(c, 13);
   for (let c = BONUS_START_COL + 8; c <= BONUS_START_COL + 15; c++) addCoin(c, 10);
-  setTile(BONUS_START_COL + 21, 16, "brick");
-  setTile(BONUS_START_COL + 22, 16, "brick");
+  addBrick(BONUS_START_COL + 21, 16);
+  addBrick(BONUS_START_COL + 22, 16, "coin");
   addQuestion(BONUS_START_COL + 23, 16, "coin");
-  setTile(BONUS_START_COL + 24, 16, "brick");
+  addBrick(BONUS_START_COL + 24, 16);
   addPipe(BONUS_EXIT_PIPE, 3);
 }
 
@@ -425,8 +431,19 @@ function bumpTile(c, r) {
     }
     return;
   }
+  const brickContent = brickContents.get(key);
+  if (brickContent && !brickContent.used) {
+    spawnCoin(c, r);
+    brickContent.count -= 1;
+    if (brickContent.kind === "coin" || brickContent.count <= 0) {
+      brickContent.used = true;
+      setTile(c, r, "used");
+    }
+    return;
+  }
   if (player.big) {
     setTile(c, r, null);
+    brickContents.delete(key);
     spawnBrickBits(c, r);
     state.score += 50;
   } else {
@@ -1073,6 +1090,7 @@ function restartGame() {
   bumpOffsets.clear();
   for (const row of level) row.fill(null);
   questionBlocks.clear();
+  brickContents.clear();
   makeLevel();
   resetPlayer();
 }
@@ -1211,6 +1229,12 @@ window.__plumberDebug = {
         })),
       collectableCoins: collectableCoins.filter(coin => !coin.collected).length,
       questionBlocks: questionBlocks.size,
+      brickContents: Array.from(brickContents.entries()).map(([key, content]) => ({
+        key,
+        kind: content.kind,
+        count: content.count,
+        used: content.used
+      })),
       powerups: powerups.map(powerup => ({ kind: powerup.kind, x: powerup.x, y: powerup.y })),
       fireballs: fireballs.length,
       fireballSamples: fireballs.map(fireball => ({ x: fireball.x, y: fireball.y, vx: fireball.vx, vy: fireball.vy }))
