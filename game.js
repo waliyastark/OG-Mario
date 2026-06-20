@@ -40,6 +40,9 @@ const state = {
   finishTimer: 0,
   flagScore: 0,
   countdownAccumulator: 0,
+  fireworkCount: 0,
+  fireworkLaunched: 0,
+  fireworkTimer: 0,
   paused: false,
   won: false,
   gameOver: false,
@@ -140,6 +143,9 @@ function sound(name) {
     tone(120, 0.16, "sawtooth", 0.06, 0.11);
   } else if (name === "flag") {
     [523, 659, 784, 1046].forEach((freq, i) => tone(freq, 0.09, "square", 0.055, i * 0.08));
+  } else if (name === "firework") {
+    tone(180, 0.05, "square", 0.06);
+    tone(720, 0.09, "square", 0.05, 0.035);
   }
 }
 
@@ -264,10 +270,15 @@ function startFlagSequence() {
   const flagTop = (GROUND_ROW - 9) * TILE;
   const flagBottom = (GROUND_ROW - 1) * TILE - player.h;
   const heightScore = Math.max(100, Math.round((flagBottom - player.y) / TILE) * 500);
+  const timerLastDigit = state.time % 10;
   state.won = true;
   state.finishPhase = "slide";
   state.finishTimer = 0;
   state.flagScore = Math.max(100, Math.min(5000, heightScore));
+  state.fireworkCount = [1, 3, 6].includes(timerLastDigit) ? timerLastDigit : 0;
+  state.fireworkLaunched = 0;
+  state.fireworkTimer = 0;
+  state.fireworks.length = 0;
   state.score += state.flagScore;
   state.message = "";
   state.messageTimer = 0;
@@ -279,6 +290,31 @@ function startFlagSequence() {
   player.facing = 1;
   addFloatingText(String(state.flagScore), player.x - 14, player.y - 24);
   sound("flag");
+}
+
+function spawnFirework(index) {
+  const xOffsets = [0, 88, 42, 122, 18, 104];
+  const yOffsets = [0, -52, -96, -28, -118, -72];
+  state.fireworks.push({
+    x: (226 * TILE) + xOffsets[index % xOffsets.length],
+    y: (GROUND_ROW - 7) * TILE + yOffsets[index % yOffsets.length],
+    ttl: 0.65,
+    age: 0,
+    color: ["#fff070", "#f84020", "#70f8ff", "#f8f8f8"][index % 4]
+  });
+  state.score += 500;
+  sound("firework");
+}
+
+function updateFireworks(dt) {
+  const step = dt / 60;
+  for (const firework of state.fireworks) {
+    firework.age += step;
+    firework.ttl -= step;
+  }
+  for (let i = state.fireworks.length - 1; i >= 0; i--) {
+    if (state.fireworks[i].ttl <= 0) state.fireworks.splice(i, 1);
+  }
 }
 
 function updateFinishSequence(dt) {
@@ -312,7 +348,24 @@ function updateFinishSequence(dt) {
       state.score += 50;
       state.countdownAccumulator -= 2;
     }
+    if (state.time <= 0) {
+      state.finishPhase = state.fireworkCount > 0 ? "fireworks" : "done";
+      state.finishTimer = 0;
+      state.fireworkTimer = 0;
+      state.countdownAccumulator = 0;
+    }
+  } else if (state.finishPhase === "fireworks") {
+    state.finishTimer += step;
+    state.fireworkTimer += step;
+    while (state.fireworkCount > 0 && state.fireworkTimer >= 0.55) {
+      spawnFirework(state.fireworkLaunched);
+      state.fireworkLaunched += 1;
+      state.fireworkCount -= 1;
+      state.fireworkTimer -= 0.55;
+    }
+    if (state.fireworkCount <= 0 && state.fireworks.length === 0) state.finishPhase = "done";
   }
+  updateFireworks(dt);
   updateParticles(dt);
   updateCamera();
 }
@@ -659,6 +712,10 @@ function resetPlayer() {
   state.finishTimer = 0;
   state.flagScore = 0;
   state.countdownAccumulator = 0;
+  state.fireworkCount = 0;
+  state.fireworkLaunched = 0;
+  state.fireworkTimer = 0;
+  state.fireworks.length = 0;
   if (state.lives <= 0) state.gameOver = true;
 }
 
@@ -1125,6 +1182,23 @@ function drawPowerup(p) {
   drawRect(x + 3, y + 18, 22, 10, "#f8c080");
 }
 
+function drawFireworks() {
+  for (const firework of state.fireworks) {
+    const progress = Math.max(0, Math.min(1, firework.age / 0.65));
+    const radius = 8 + progress * 42;
+    const alpha = 1 - progress;
+    const x = firework.x - state.cameraX;
+    const y = firework.y;
+    ctx.globalAlpha = Math.max(0, alpha);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      drawRect(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 8, 8, firework.color);
+    }
+    drawRect(x - 4, y - 4, 8, 8, "#ffffff");
+    ctx.globalAlpha = 1;
+  }
+}
+
 function drawCloud(x, y) {
   drawRect(x + 18, y + 10, 48, 20, "#fff");
   drawRect(x + 30, y, 20, 20, "#fff");
@@ -1259,6 +1333,7 @@ function draw() {
   }
   for (const e of enemies) if (e.alive && e.x > state.cameraX - 80 && e.x < state.cameraX + VIEW_W + 80) drawEnemy(e);
   if (!player.hiddenBehindCastle) drawPlayer();
+  drawFireworks();
   ctx.fillStyle = "#fff";
   ctx.font = "bold 18px Courier New";
   for (const f of floatingText) ctx.fillText(f.text, f.x - state.cameraX, f.y);
@@ -1287,6 +1362,10 @@ function restartGame() {
   state.finishTimer = 0;
   state.flagScore = 0;
   state.countdownAccumulator = 0;
+  state.fireworkCount = 0;
+  state.fireworkLaunched = 0;
+  state.fireworkTimer = 0;
+  state.fireworks.length = 0;
   state.gameOver = false;
   state.won = false;
   state.message = "WORLD 1-1";
@@ -1410,6 +1489,10 @@ window.__plumberDebug = {
     state.lives = lives;
     state.score = score;
   },
+  setTime(time) {
+    state.time = time;
+    state.timeAccumulator = 0;
+  },
   snapshot() {
     const tiles = {};
     for (const row of level) {
@@ -1441,6 +1524,9 @@ window.__plumberDebug = {
         pipeTimer: state.pipeTimer,
         finishPhase: state.finishPhase,
         flagScore: state.flagScore,
+        fireworkCount: state.fireworkCount,
+        fireworkLaunched: state.fireworkLaunched,
+        fireworks: state.fireworks.length,
         won: state.won,
         gameOver: state.gameOver
       },

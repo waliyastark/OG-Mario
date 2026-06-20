@@ -1,6 +1,6 @@
 # OG Mario
 
-OG Mario is a self-contained browser platformer recreating the feel and flow of the original first-stage side-scrolling adventure: a world intro, scrolling overworld, pipes, brick and question blocks, enemies, coins, mushrooms, a hidden 1-up, an underground bonus room, a flagpole finish, and score countdown.
+OG Mario is a self-contained browser platformer recreating the feel and flow of the original first-stage side-scrolling adventure: a world intro, scrolling overworld, pipes, brick and question blocks, enemies, coins, mushrooms, a hidden 1-up, an underground bonus room, a flagpole finish, score countdown, and timer-based castle fireworks.
 
 ## Play
 
