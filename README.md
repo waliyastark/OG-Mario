@@ -1,6 +1,6 @@
 # OG Mario
 
-OG Mario is a self-contained browser platformer recreating the feel and flow of the original first-stage side-scrolling adventure: a world intro, scrolling overworld, pipes, brick and question blocks, enemies, coins, mushrooms, a hidden 1-up, an underground bonus room, a flagpole finish, score countdown, and timer-based castle fireworks.
+OG Mario is a self-contained browser platformer recreating the feel and flow of the original first-stage side-scrolling adventure: a world intro, scrolling overworld, pipes, brick and question blocks, enemies, coins, mushrooms, a hidden 1-up, a Starman, an underground bonus room, a flagpole finish, score countdown, and timer-based castle fireworks.
 
 ## Play
 
@@ -24,7 +24,7 @@ Touch controls appear automatically on mobile devices.
 
 ## Goal
 
-Reach the flagpole at the far right of the level. Collect coins, stomp enemies, hit blocks from below, find the hidden 1-up, power up from mushroom to flower, and enter the correct pipe to visit the underground bonus room before returning to the main course.
+Reach the flagpole at the far right of the level. Collect coins, stomp enemies, hit blocks from below, find the hidden 1-up, grab the Starman, power up from mushroom to flower, and enter the correct pipe to visit the underground bonus room before returning to the main course.
 
 ## Files
 

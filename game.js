@@ -82,6 +82,7 @@ const player = {
   coyoteTimer: 0,
   stompChain: 0,
   invincible: 0,
+  starTimer: 0,
   shootCooldown: 0,
   big: false,
   fire: false,
@@ -130,6 +131,8 @@ function sound(name) {
     tone(90, 0.08, "sawtooth", 0.06, 0.04);
   } else if (name === "powerup") {
     [392, 523, 659, 784].forEach((freq, i) => tone(freq, 0.07, "square", 0.055, i * 0.055));
+  } else if (name === "star") {
+    [784, 988, 1175, 1568, 1175, 988].forEach((freq, i) => tone(freq, 0.055, "square", 0.05, i * 0.055));
   } else if (name === "stomp") {
     tone(190, 0.05, "square", 0.08);
     tone(95, 0.08, "square", 0.06, 0.04);
@@ -430,7 +433,7 @@ function makeLevel() {
 
   for (let c = 91; c <= 94; c++) addBrick(c, 16, c === 92 ? "coin" : null);
   addQuestion(94, 12, "coin");
-  addBrick(100, 16);
+  addBrick(100, 16, "star");
   addBrick(101, 16, "coin");
   addQuestion(106, 16, "coin");
   addQuestion(109, 16, "coin");
@@ -592,14 +595,15 @@ function spawnPowerup(c, r, kind) {
   if (kind === "mushroom" && player.big) kind = "flower";
   const isOneUp = kind === "oneup";
   const isFlower = kind === "flower";
+  const isStar = kind === "star";
   powerups.push({
     kind,
     x: c * TILE + 2,
     y: r * TILE - 2,
     w: 28,
     h: 28,
-    vx: isFlower ? 0 : isOneUp ? 1.6 : 1.1,
-    vy: -1,
+    vx: isFlower ? 0 : isStar ? 1.45 : isOneUp ? 1.6 : 1.1,
+    vy: isStar ? -5.5 : -1,
     reveal: 0.7,
     stationary: isFlower
   });
@@ -622,9 +626,14 @@ function bumpTile(c, r) {
   }
   const brickContent = brickContents.get(key);
   if (brickContent && !brickContent.used) {
-    spawnCoin(c, r);
-    brickContent.count -= 1;
-    if (brickContent.kind === "coin" || brickContent.count <= 0) {
+    if (brickContent.kind === "coin" || brickContent.kind === "multiCoin") {
+      spawnCoin(c, r);
+      brickContent.count -= 1;
+    } else {
+      spawnPowerup(c, r, brickContent.kind);
+      brickContent.count = 0;
+    }
+    if (brickContent.kind !== "multiCoin" || brickContent.count <= 0) {
       brickContent.used = true;
       setTile(c, r, "used");
     }
@@ -688,7 +697,7 @@ function collideY(entity) {
 }
 
 function hurtPlayer() {
-  if (player.invincible > 0 || player.dead || state.won) return;
+  if (player.invincible > 0 || player.starTimer > 0 || player.dead || state.won) return;
   sound("hurt");
   if (player.fire) {
     player.fire = false;
@@ -727,6 +736,7 @@ function resetPlayer() {
   player.winWalk = false;
   player.hiddenBehindCastle = false;
   player.invincible = 1.5;
+  player.starTimer = 0;
   state.cameraX = 0;
   state.time = 400;
   state.area = "main";
@@ -846,6 +856,7 @@ function updatePlayer(dt) {
   }
   if (player.y > VIEW_H + 80) hurtPlayer();
   if (player.invincible > 0) player.invincible -= dt / 60;
+  if (player.starTimer > 0) player.starTimer = Math.max(0, player.starTimer - dt / 60);
 
   const flagX = 216 * TILE;
   if (state.area === "main" && player.x + player.w > flagX && player.y < GROUND_ROW * TILE) {
@@ -880,7 +891,13 @@ function updateEnemies(dt) {
     }
 
     if (!player.dead && rects(player, e)) {
-      if (player.vy > 0 && player.y + player.h - e.y < 22) {
+      if (player.starTimer > 0) {
+        e.alive = false;
+        e.vx = 0;
+        e.vy = -6;
+        awardEnemyScore(100, e.x, e.y);
+        sound("stomp");
+      } else if (player.vy > 0 && player.y + player.h - e.y < 22) {
         if (e.shell) {
           e.vx = 0;
           e.hitChain = 0;
@@ -976,15 +993,25 @@ function updatePowerups(dt) {
       p.y -= 0.5 * dt;
     } else if (!p.stationary) {
       moveEntity(p, dt);
+      if (p.kind === "star" && p.onGround) {
+        p.vy = -8.2;
+        p.onGround = false;
+      }
     }
     if (rects(player, p)) {
       p.collected = true;
-      sound("powerup");
       if (p.kind === "oneup") {
+        sound("powerup");
         state.lives += 1;
         state.score += 1000;
         addFloatingText("1UP", player.x, player.y);
+      } else if (p.kind === "star") {
+        sound("star");
+        player.starTimer = 10;
+        state.score += 1000;
+        addFloatingText("1000", player.x, player.y);
       } else {
+        sound("powerup");
         player.big = true;
         player.fire = p.kind === "flower";
         player.crouching = false;
@@ -1137,10 +1164,18 @@ function drawPlayer() {
   const x = player.x - state.cameraX;
   const y = player.y;
   if (player.invincible > 0 && Math.floor(performance.now() / 80) % 2 === 0) return;
-  const cap = player.fire ? "#f8f8f8" : "#d82800";
-  const shirt = player.fire ? "#f8f8f8" : player.big ? "#d82800" : "#b81800";
-  const overalls = player.fire ? "#d82800" : "#0060b8";
-  const skin = "#f8c080";
+  const starFlash = player.starTimer > 0 ? Math.floor(performance.now() / 80) % 4 : -1;
+  const starColors = [
+    { cap: "#fff070", shirt: "#f84020", overalls: "#70f8ff", skin: "#f8f8f8" },
+    { cap: "#70f8ff", shirt: "#fff070", overalls: "#f84020", skin: "#f8c080" },
+    { cap: "#f8f8f8", shirt: "#70f8ff", overalls: "#fff070", skin: "#f8c080" },
+    { cap: "#f84020", shirt: "#f8f8f8", overalls: "#0060b8", skin: "#fff070" }
+  ];
+  const starPalette = starFlash >= 0 ? starColors[starFlash] : null;
+  const cap = starPalette ? starPalette.cap : player.fire ? "#f8f8f8" : "#d82800";
+  const shirt = starPalette ? starPalette.shirt : player.fire ? "#f8f8f8" : player.big ? "#d82800" : "#b81800";
+  const overalls = starPalette ? starPalette.overalls : player.fire ? "#d82800" : "#0060b8";
+  const skin = starPalette ? starPalette.skin : "#f8c080";
   const shoe = "#5c2c00";
   if (player.crouching) {
     drawRect(x + 6, y + 0, 16, 8, cap);
@@ -1192,6 +1227,18 @@ function drawEnemy(e) {
 function drawPowerup(p) {
   const x = p.x - state.cameraX;
   const y = p.y;
+  if (p.kind === "star") {
+    const flash = Math.floor(performance.now() / 90) % 4;
+    const fill = ["#fff070", "#f8f8f8", "#ffb000", "#70f8ff"][flash];
+    drawRect(x + 11, y + 1, 6, 8, fill);
+    drawRect(x + 6, y + 8, 16, 6, fill);
+    drawRect(x + 1, y + 14, 26, 7, fill);
+    drawRect(x + 7, y + 21, 6, 7, fill);
+    drawRect(x + 16, y + 21, 6, 7, fill);
+    drawRect(x + 8, y + 11, 3, 3, "#101010");
+    drawRect(x + 17, y + 11, 3, 3, "#101010");
+    return;
+  }
   if (p.kind === "flower") {
     drawRect(x + 11, y + 16, 6, 12, "#20a038");
     drawRect(x + 4, y + 5, 20, 16, "#f8f8f8");
@@ -1473,6 +1520,7 @@ window.__plumberDebug = {
     player.fire = false;
     player.crouching = false;
     player.shootCooldown = 0;
+    player.starTimer = 0;
     player.jumpBuffer = 0;
     player.coyoteTimer = 0;
     player.jumpHold = 0;
@@ -1490,6 +1538,7 @@ window.__plumberDebug = {
   setPower({ big = player.big, fire = player.fire } = {}) {
     player.big = big;
     player.fire = fire;
+    player.starTimer = 0;
     player.crouching = false;
     setPlayerHeight(big ? 48 : 32);
   },
@@ -1540,7 +1589,8 @@ window.__plumberDebug = {
         crouching: player.crouching,
         h: player.h,
         dead: player.dead,
-        stompChain: player.stompChain
+        stompChain: player.stompChain,
+        starTimer: player.starTimer
       },
       state: {
         cameraX: state.cameraX,
