@@ -75,6 +75,8 @@ const player = {
   facing: 1,
   onGround: false,
   jumpHold: 0,
+  jumpBuffer: 0,
+  coyoteTimer: 0,
   invincible: 0,
   shootCooldown: 0,
   big: false,
@@ -476,6 +478,25 @@ function spawnBrickBits(c, r) {
   }
 }
 
+function hitEnemiesAboveBlock(c, r) {
+  const blockTop = r * TILE;
+  const blockLeft = c * TILE;
+  const blockRight = blockLeft + TILE;
+  for (const enemy of enemies) {
+    if (!enemy.alive || enemy.squashed > 0) continue;
+    const enemyFoot = enemy.y + enemy.h;
+    const overlapsHorizontally = enemy.x + enemy.w > blockLeft + 2 && enemy.x < blockRight - 2;
+    const standsOnBlock = Math.abs(enemyFoot - blockTop) <= 10;
+    if (!overlapsHorizontally || !standsOnBlock) continue;
+    enemy.alive = false;
+    enemy.vx = 0;
+    enemy.vy = -6;
+    state.score += 100;
+    addFloatingText("100", enemy.x, enemy.y);
+    sound("stomp");
+  }
+}
+
 function spawnPowerup(c, r, kind) {
   if (kind === "coin") {
     spawnCoin(c, r);
@@ -502,6 +523,7 @@ function bumpTile(c, r) {
   if (!bumpableTiles.has(type)) return;
   const key = tileKey(c, r);
   bumpOffsets.set(key, { t: 0, y: 0 });
+  hitEnemiesAboveBlock(c, r);
   if (type === "block" || type === "hidden") {
     const q = questionBlocks.get(key);
     if (q && !q.used) {
@@ -611,6 +633,9 @@ function resetPlayer() {
   player.fire = false;
   player.crouching = false;
   setPlayerHeight(32);
+  player.jumpBuffer = 0;
+  player.coyoteTimer = 0;
+  player.jumpHold = 0;
   player.winWalk = false;
   player.hiddenBehindCastle = false;
   player.invincible = 1.5;
@@ -661,6 +686,9 @@ function updatePlayer(dt) {
   }
   if (keys.runPressed) shootFireball();
   if (player.shootCooldown > 0) player.shootCooldown -= dt / 60;
+  if (player.onGround) player.coyoteTimer = 0.11;
+  else player.coyoteTimer = Math.max(0, player.coyoteTimer - dt / 60);
+  player.jumpBuffer = Math.max(0, player.jumpBuffer - dt / 60);
 
   const accel = player.onGround ? 0.54 : 0.28;
   const maxSpeed = player.crouching ? 1.1 : keys.run ? 5.1 : 3.2;
@@ -677,9 +705,11 @@ function updatePlayer(dt) {
   }
   player.vx = Math.max(-maxSpeed, Math.min(maxSpeed, player.vx));
 
-  if (keys.jumpPressed && player.onGround) {
+  if (player.jumpBuffer > 0 && (player.onGround || player.coyoteTimer > 0) && !player.crouching) {
     player.vy = keys.run ? -13.2 : -12;
     player.onGround = false;
+    player.coyoteTimer = 0;
+    player.jumpBuffer = 0;
     player.jumpHold = 0.24;
     sound("jump");
   }
@@ -1254,6 +1284,7 @@ window.addEventListener("keydown", event => {
   }
   if (event.code === "Space" || event.code === "KeyZ" || event.code === "ArrowUp") {
     if (!keys.jump) keys.jumpPressed = true;
+    player.jumpBuffer = 0.14;
     keys.jump = true;
     event.preventDefault();
   }
@@ -1265,7 +1296,10 @@ window.addEventListener("keyup", event => {
   if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = false;
   if (event.code === "ArrowDown" || event.code === "KeyS") keys.down = false;
   if (event.code === "ShiftLeft" || event.code === "ShiftRight" || event.code === "KeyX") keys.run = false;
-  if (event.code === "Space" || event.code === "KeyZ" || event.code === "ArrowUp") keys.jump = false;
+  if (event.code === "Space" || event.code === "KeyZ" || event.code === "ArrowUp") {
+    keys.jump = false;
+    if (player.vy < -4) player.vy *= 0.55;
+  }
 });
 
 for (const button of document.querySelectorAll(".mobile-controls button")) {
@@ -1278,17 +1312,24 @@ for (const button of document.querySelectorAll(".mobile-controls button")) {
     if (hold) keys[hold] = true;
     if (press === "jump") {
       keys.jumpPressed = true;
+      player.jumpBuffer = 0.14;
       keys.jump = true;
     }
   });
   button.addEventListener("pointerup", event => {
     event.preventDefault();
     if (hold) keys[hold] = false;
-    if (press === "jump") keys.jump = false;
+    if (press === "jump") {
+      keys.jump = false;
+      if (player.vy < -4) player.vy *= 0.55;
+    }
   });
   button.addEventListener("pointercancel", () => {
     if (hold) keys[hold] = false;
-    if (press === "jump") keys.jump = false;
+    if (press === "jump") {
+      keys.jump = false;
+      if (player.vy < -4) player.vy *= 0.55;
+    }
   });
 }
 
@@ -1305,6 +1346,9 @@ window.__plumberDebug = {
     player.fire = false;
     player.crouching = false;
     player.shootCooldown = 0;
+    player.jumpBuffer = 0;
+    player.coyoteTimer = 0;
+    player.jumpHold = 0;
     player.x = c * TILE;
     player.y = row * TILE - player.h;
     player.vx = 0;
