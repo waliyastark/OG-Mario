@@ -39,6 +39,7 @@ const state = {
   finishPhase: null,
   finishTimer: 0,
   flagScore: 0,
+  flagY: null,
   countdownAccumulator: 0,
   fireworkCount: 0,
   fireworkLaunched: 0,
@@ -279,6 +280,7 @@ function startFlagSequence() {
   state.finishPhase = "slide";
   state.finishTimer = 0;
   state.flagScore = Math.max(100, Math.min(5000, heightScore));
+  state.flagY = flagTop + 5;
   state.fireworkCount = [1, 3, 6].includes(timerLastDigit) ? timerLastDigit : 0;
   state.fireworkLaunched = 0;
   state.fireworkTimer = 0;
@@ -324,12 +326,15 @@ function updateFireworks(dt) {
 function updateFinishSequence(dt) {
   const step = dt / 60;
   const groundY = GROUND_ROW * TILE - player.h;
+  const flagBottomY = (GROUND_ROW - 2) * TILE + 5;
   if (state.finishPhase === "slide") {
     player.y = Math.min(groundY, player.y + 3.2 * dt);
     player.x = 216 * TILE + 10;
+    state.flagY = Math.min(flagBottomY, (state.flagY ?? ((GROUND_ROW - 9) * TILE + 5)) + 3.2 * dt);
     if (player.y >= groundY) {
       state.finishPhase = "walk";
       player.y = groundY;
+      state.flagY = flagBottomY;
       player.vx = 1.8;
     }
   } else if (state.finishPhase === "walk") {
@@ -745,6 +750,7 @@ function resetPlayer() {
   state.finishPhase = null;
   state.finishTimer = 0;
   state.flagScore = 0;
+  state.flagY = null;
   state.countdownAccumulator = 0;
   state.fireworkCount = 0;
   state.fireworkLaunched = 0;
@@ -1153,12 +1159,19 @@ function drawTile(type, x, y) {
     drawRect(x + 14, y, 4, TILE, "#d8f8d8");
   } else if (type === "flag") {
     drawRect(x + 14, y, 4, TILE, "#d8f8d8");
-    drawRect(x + 18, y + 5, 30, 20, "#26a641");
   } else if (type === "castle") {
     drawRect(x, y, TILE, TILE, "#8c8c8c");
     drawRect(x + 3, y + 4, 8, 5, "#5c5c5c");
     drawRect(x + 19, y + 17, 8, 8, "#303030");
   }
+}
+
+function drawFlag() {
+  const flagX = 216 * TILE - state.cameraX;
+  const flagY = state.flagY ?? ((GROUND_ROW - 9) * TILE + 5);
+  drawRect(flagX + 18, flagY, 30, 20, "#26a641");
+  drawRect(flagX + 18, flagY, 5, 20, "#f8f8f8");
+  drawRect(flagX + 23, flagY + 5, 10, 5, "#f8f8f8");
 }
 
 function drawPlayer() {
@@ -1387,6 +1400,7 @@ function draw() {
       drawTile(level[r][c], c * TILE - state.cameraX, r * TILE + (bump ? bump.y : 0));
     }
   }
+  drawFlag();
   for (const coin of collectableCoins) {
     if (coin.collected || coin.x < state.cameraX - 40 || coin.x > state.cameraX + VIEW_W + 40) continue;
     const spin = Math.abs(Math.sin(performance.now() / 180));
@@ -1438,6 +1452,7 @@ function restartGame() {
   state.finishPhase = null;
   state.finishTimer = 0;
   state.flagScore = 0;
+  state.flagY = null;
   state.countdownAccumulator = 0;
   state.fireworkCount = 0;
   state.fireworkLaunched = 0;
@@ -1618,6 +1633,7 @@ window.__plumberDebug = {
         pipeTimer: state.pipeTimer,
         finishPhase: state.finishPhase,
         flagScore: state.flagScore,
+        flagY: state.flagY,
         fireworkCount: state.fireworkCount,
         fireworkLaunched: state.fireworkLaunched,
         fireworks: state.fireworks.length,
