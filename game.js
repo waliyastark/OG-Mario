@@ -611,7 +611,8 @@ function spawnPowerup(c, r, kind) {
     vx: isFlower ? 0 : isStar ? 1.45 : isOneUp ? 1.6 : 1.1,
     vy: isStar ? -5.5 : -1,
     reveal: 0.7,
-    stationary: isFlower
+    stationary: isFlower,
+    turnsAtWalls: !isFlower
   });
 }
 
@@ -675,7 +676,7 @@ function collideX(entity) {
       if (!isSolid(c, r)) continue;
       if (entity.vx > 0) entity.x = c * TILE - entity.w;
       if (entity.vx < 0) entity.x = (c + 1) * TILE;
-      entity.vx = entity.enemy ? -entity.vx : 0;
+      entity.vx = entity.enemy || entity.turnsAtWalls ? -entity.vx : 0;
     }
   }
 }
@@ -1589,6 +1590,9 @@ window.__plumberDebug = {
   setPlayer(patch) {
     Object.assign(player, patch);
   },
+  setPowerup(index, patch) {
+    Object.assign(powerups[index], patch);
+  },
   forceDeath() {
     player.big = false;
     player.fire = false;
@@ -1675,7 +1679,15 @@ window.__plumberDebug = {
         count: content.count,
         used: content.used
       })),
-      powerups: powerups.map(powerup => ({ kind: powerup.kind, x: powerup.x, y: powerup.y })),
+      powerups: powerups.map(powerup => ({
+        kind: powerup.kind,
+        x: powerup.x,
+        y: powerup.y,
+        vx: powerup.vx,
+        vy: powerup.vy,
+        reveal: powerup.reveal,
+        turnsAtWalls: powerup.turnsAtWalls
+      })),
       fireballs: fireballs.length,
       fireballSamples: fireballs.map(fireball => ({ x: fireball.x, y: fireball.y, vx: fireball.vx, vy: fireball.vy }))
     };
