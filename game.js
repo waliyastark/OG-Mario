@@ -1066,6 +1066,7 @@ function updateCamera() {
 
 function update(dt) {
   if (state.gameOver) return;
+  if (state.paused) return;
   if (state.introTimer > 0) {
     state.introTimer -= dt / 60;
     return;
@@ -1349,6 +1350,12 @@ function drawHud() {
     }
     ctx.textAlign = "left";
   }
+  if (state.paused) {
+    ctx.textAlign = "center";
+    ctx.font = "bold 44px Courier New";
+    ctx.fillText("PAUSE", VIEW_W / 2, 178);
+    ctx.textAlign = "left";
+  }
 }
 
 function drawIntro() {
@@ -1437,6 +1444,7 @@ function restartGame() {
   state.fireworkTimer = 0;
   state.fireworks.length = 0;
   state.gameOver = false;
+  state.paused = false;
   state.won = false;
   state.message = "WORLD 1-1";
   state.messageTimer = 2.4;
@@ -1449,6 +1457,12 @@ function restartGame() {
 
 window.addEventListener("keydown", event => {
   ensureAudio();
+  if (event.code === "Enter" || event.code === "KeyP") {
+    if (state.gameOver) restartGame();
+    else if (state.introTimer <= 0 && !player.dead && !state.won) state.paused = !state.paused;
+    event.preventDefault();
+    return;
+  }
   if (event.code === "ArrowLeft" || event.code === "KeyA") keys.left = true;
   if (event.code === "ArrowRight" || event.code === "KeyD") keys.right = true;
   if (event.code === "ArrowDown" || event.code === "KeyS") keys.down = true;
@@ -1462,7 +1476,6 @@ window.addEventListener("keydown", event => {
     keys.jump = true;
     event.preventDefault();
   }
-  if (event.code === "Enter" && state.gameOver) restartGame();
 });
 
 window.addEventListener("keyup", event => {
@@ -1569,6 +1582,9 @@ window.__plumberDebug = {
     state.time = time;
     state.timeAccumulator = 0;
   },
+  setPaused(paused) {
+    state.paused = paused;
+  },
   snapshot() {
     const tiles = {};
     for (const row of level) {
@@ -1605,6 +1621,7 @@ window.__plumberDebug = {
         fireworkCount: state.fireworkCount,
         fireworkLaunched: state.fireworkLaunched,
         fireworks: state.fireworks.length,
+        paused: state.paused,
         won: state.won,
         gameOver: state.gameOver
       },

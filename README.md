@@ -18,6 +18,7 @@ Sound effects start after your first keyboard or touch input, which matches norm
 | Run / throw fireballs after flower | Shift or X |
 | Jump | Space, Z, or Up |
 | Crouch / enter usable pipes | Down or S |
+| Pause / resume | Enter or P |
 | Restart after game over | Enter |
 
 Touch controls appear automatically on mobile devices.
