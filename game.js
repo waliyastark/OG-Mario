@@ -1480,9 +1480,17 @@ function restartGame() {
 
 window.addEventListener("keydown", event => {
   ensureAudio();
-  if (event.code === "Enter" || event.code === "KeyP") {
+  if (event.code === "Enter") {
     if (state.gameOver) restartGame();
-    else if (state.introTimer <= 0 && !player.dead && !state.won) state.paused = !state.paused;
+    else if (state.introTimer > 0) {
+      state.introTimer = 0;
+      state.messageTimer = 0;
+    }
+    event.preventDefault();
+    return;
+  }
+  if (event.code === "KeyP" || event.code === "Escape") {
+    if (state.introTimer <= 0 && !player.dead && !state.won && !state.gameOver) state.paused = !state.paused;
     event.preventDefault();
     return;
   }
